@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #000; overflow: hidden; }
+        #terminal { height: 100vh; width: 100vw; }
+    </style>
+</head>
+<body>
+    <div id="terminal"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.8.0/lib/addon-fit.js"></script>
+    <script>
+        const term = new Terminal({
+            theme: {
+                background: '#000',
+                foreground: '#fff',
+                cursor: '#fff',
+                selectionBackground: 'rgba(255, 255, 255, 0.3)',
+            },
+            fontSize: 14,
+            fontFamily: 'monospace',
+            cursorBlink: true,
+            convertEol: true,
+            allowProposedApi: true
+        });
+
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+
+        // Communication logic
+        window.addEventListener('message', (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'OUTPUT') {
+                    term.write(data.data);
+                } else if (data.type === 'RESIZE') {
+                    fitAddon.fit();
+                }
+            } catch (e) {
+                console.error("Terminal UI Error:", e);
+            }
+        });
+
+        term.onData((data) => {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'INPUT',
+                data: data
+            }));
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+            const { cols, rows } = term;
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'RESIZE',
+                cols: cols,
+                rows: rows
+            }));
+        });
+
+        // Initial Resize message
+        setTimeout(() => {
+            fitAddon.fit();
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'RESIZE',
+                cols: term.cols,
+                rows: term.rows
+            }));
+        }, 500);
+    </script>
+</body>
+</html>

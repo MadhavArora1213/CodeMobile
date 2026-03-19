@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Piston data (Docker)
+/piston*/
+/piston-cli-repo/

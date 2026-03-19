@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #1e1e1e; overflow: hidden; }
+        #editor { height: 100vh; width: 100vw; }
+        .cm-editor { height: 100% !important; }
+    </style>
+</head>
+<body>
+    <div id="editor"></div>
+    <script type="module">
+        import { EditorView, basicSetup } from "https://esm.sh/codemirror@6.0.1";
+        import { EditorState, Compartment } from "https://esm.sh/@codemirror/state@6.0.1";
+        import { javascript } from "https://esm.sh/@codemirror/lang-javascript@6.0.0";
+        import { python } from "https://esm.sh/@codemirror/lang-python@6.0.0";
+        import { java } from "https://esm.sh/@codemirror/lang-java@6.0.0";
+        import { cpp } from "https://esm.sh/@codemirror/lang-cpp@6.0.0";
+        import { rust } from "https://esm.sh/@codemirror/lang-rust@6.0.0";
+        import { go } from "https://esm.sh/@codemirror/lang-go@6.0.0";
+        import { php } from "https://esm.sh/@codemirror/lang-php@6.0.0";
+        import { oneDark } from "https://esm.sh/@codemirror/theme-one-dark@6.0.0";
+
+        const languageConf = new Compartment();
+        const tabSize = new Compartment();
+
+        const languages = {
+            'javascript': javascript(),
+            'typescript': javascript({typescript: true}),
+            'python': python(),
+            'java': java(),
+            'cpp': cpp(),
+            'rust': rust(),
+            'go': go(),
+            'php': php()
+        };
+
+        let startState = EditorState.create({
+            doc: "",
+            extensions: [
+                basicSetup,
+                oneDark,
+                languageConf.of(javascript()),
+                tabSize.of(EditorState.tabSize.of(4)),
+                EditorView.updateListener.of((update) => {
+                    if (update.docChanged) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                            type: 'CODE_CHANGED',
+                            code: update.state.doc.toString()
+                        }));
+                    }
+                })
+            ]
+        });
+
+        let view = new EditorView({
+            state: startState,
+            parent: document.getElementById('editor')
+        });
+
+        window.addEventListener('message', (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'LOAD_FILE') {
+                    view.dispatch({
+                        changes: { from: 0, to: view.state.doc.length, insert: data.content },
+                        effects: languageConf.reconfigure(languages[data.language] || javascript())
+                    });
+                } else if (data.type === 'SET_THEME') {
+                    // Logic for theme switching could go here
+                }
+            } catch (e) {
+                console.error("Error in WebView message listener:", e);
+            }
+        });
+    </script>
+</body>
+</html>
