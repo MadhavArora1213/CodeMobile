@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { LANGUAGES, LanguageMeta } from '../constants/languages';
 
-const PISTON_URL = (process.env.EXPO_PUBLIC_BACKEND_URL || 'http://192.168.1.9:3000') + '/api/execute';
+const PISTON_URL = (process.env.EXPO_PUBLIC_BACKEND_URL || 'http://192.168.1.10:2000') + '/api/v2/execute';
 
 export interface PistonResponse {
   language: string;
@@ -47,7 +47,18 @@ export const executeCode = async (
       run_timeout: 3000
     });
 
-    return response.data;
+    const cleanStderr = (response.data.run.stderr || '')
+      .replace(/Cannot open \/sys\/fs\/cgroup\/isolate\/box-\d+\/memory\.events: No such file or directory\n?/g, '')
+      .replace(/Control group root \/sys\/fs\/cgroup\/isolate does not exist\n?/g, '');
+
+    return {
+      ...response.data,
+      run: {
+        ...response.data.run,
+        stderr: cleanStderr,
+        output: response.data.run.stdout + cleanStderr
+      }
+    };
   } catch (error: any) {
     console.error('Error executing code via Piston:', error);
     return {
@@ -55,7 +66,9 @@ export const executeCode = async (
       version: 'unknown',
       run: {
         stdout: '',
-        stderr: error.response?.data?.message || error.message || 'Unknown error occurred',
+      stderr: (error.response?.data?.message || error.message || 'Unknown error occurred')
+        .replace(/Cannot open \/sys\/fs\/cgroup\/isolate\/box-\d+\/memory\.events: No such file or directory\n?/g, '')
+        .replace(/Control group root \/sys\/fs\/cgroup\/isolate does not exist\n?/g, ''),
         code: 1,
         signal: null,
         output: error.message,

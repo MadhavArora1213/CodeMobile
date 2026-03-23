@@ -23,7 +23,7 @@ app.use('/api/auth', authRoutes);
 // M12 - AI Proxy (Streaming enabled)
 app.post('/api/ai/chat', async (req, res) => {
   const { prompt, context, stream = false } = req.body;
-  
+
   const systemPrompt = `You are CodeMobile AI Assistant. 
     Generate complete, working code. Include comments. Use best practices.
     Multilingual support: English, Hindi, Hinglish.
@@ -75,13 +75,13 @@ const vm = require('node:vm');
 
 // M16 - Code Execution Proxy (Local JS Runner + Cloud Fallback)
 // M16 - Code Execution Proxy (Exclusive Piston Runner)
-app.post('/api/execute', async (req, res) => {
+app.post('/api/v2/execute', async (req, res) => {
   const { language, version, files, stdin, args } = req.body;
 
   try {
     const pistonUrl = process.env.PISTON_URL || 'https://emkc.org/api/v2/piston/execute';
     console.log(`⚡ Using Piston for ${language} execution...`);
-    
+
     // Some versions of Piston use /api/v2/piston/execute
     // Others might use /api/v2/piston
     const targetUrl = pistonUrl.includes('/execute') ? pistonUrl : pistonUrl + '/execute';

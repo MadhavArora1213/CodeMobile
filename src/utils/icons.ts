@@ -19,6 +19,14 @@ export const getFileIconInfo = (name: string): { Icon?: any; color: string; uri?
     'cpp': 'cpp', 'hpp': 'cpp', 'cc': 'cpp',
     'html': 'html', 'htm': 'html',
     'css': 'css', 'scss': 'css',
+    'rs': 'rust',
+    'go': 'go',
+    'php': 'php',
+    'rb': 'ruby',
+    'kt': 'kotlin',
+    'swift': 'swift',
+    'dart': 'dart',
+    'cs': 'csharp',
   };
 
   if (logoMap[ext]) {

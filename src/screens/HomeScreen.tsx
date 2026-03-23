@@ -9,7 +9,8 @@ import OutputPanel from '../components/OutputPanel';
 import Terminal from '../components/Terminal';
 import GitView from '../components/GitView';
 import { useFileStore } from '../store/useFileStore';
-import { executeCode } from '../utils/piston';
+import { executeCode } from '../utils/codeExecution';
+import { getLanguageByExtension } from '../constants/languages';
 
 const HomeScreen = () => {
   const [showExplorer, setShowExplorer] = useState(false);
@@ -46,8 +47,9 @@ const HomeScreen = () => {
     setShowOutput(true);
     setExecutionResult({ stdout: 'Running...', stderr: '' });
 
-    const lang = activeFile.name.endsWith('.py') ? 'python' : 'javascript';
-    const result = await executeCode(lang, currentContent);
+    const langMeta = getLanguageByExtension(activeFile.name);
+    const langId = langMeta?.id || 'javascript';
+    const result = await executeCode(langId, currentContent);
     
     setExecutionResult({
       stdout: result.run.stdout,
@@ -55,6 +57,14 @@ const HomeScreen = () => {
     });
     setLoading(false);
   };
+
+  const handleAiSuggestionRequest = (context: string, language: string) => {
+    // Placeholder for AI suggestions
+    console.log('AI Suggestion requested:', { context, language });
+  };
+
+  const currentLanguageMeta = activeFile ? getLanguageByExtension(activeFile.name) : null;
+  const currentLanguage = currentLanguageMeta?.id || 'javascript';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -67,7 +77,7 @@ const HomeScreen = () => {
         <Text style={styles.fileName}>
           {activeFile ? activeFile.name : 'CodeMobile'}
         </Text>
-
+ 
         <View style={styles.rightActions}>
           <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
             <Save size={24} color="#fff" />
@@ -86,20 +96,21 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-
+ 
       <View style={styles.main}>
         {showExplorer && (
           <View style={styles.explorerOverlay}>
             <FileExplorer />
           </View>
         )}
-
+ 
         <View style={styles.editorContainer}>
           {activeFile ? (
             <Editor 
               content={activeFile.content || ''} 
-              language={activeFile.name.endsWith('.py') ? 'python' : 'javascript'}
+              language={currentLanguage}
               onChange={setCurrentContent}
+              onAiSuggestionRequest={handleAiSuggestionRequest}
             />
           ) : (
             <View style={styles.emptyState}>

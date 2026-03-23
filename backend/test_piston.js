@@ -5,7 +5,7 @@ async function testPiston() {
   try {
     const payload = {
       language: 'javascript',
-      version: '18.15.0',
+      version: '20.11.1',
       files: [
         {
           name: 'main.js',

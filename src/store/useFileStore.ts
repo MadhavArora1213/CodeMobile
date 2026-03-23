@@ -245,6 +245,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
       else if (ext === 'rb') content = 'puts "Hello from Ruby!"\n';
       else if (ext === 'swift') content = 'print("Hello from Swift!")\n';
       else if (ext === 'sh') content = '#!/bin/bash\necho "Hello from Bash!"\n';
+      else if (ext === 'kt') content = 'fun main() {\n    println("Hello from Kotlin!")\n}\n';
       
       await FileSystem.writeAsStringAsync(filePath, content);
       
