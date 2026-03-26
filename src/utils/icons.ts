@@ -27,11 +27,33 @@ export const getFileIconInfo = (name: string): { Icon?: any; color: string; uri?
     'swift': 'swift',
     'dart': 'dart',
     'cs': 'csharp',
+    'lua': 'lua',
+    'ex': 'elixir',
+    'exs': 'elixir',
+    'hs': 'haskell',
+    'r': 'r',
+    'scala': 'scala',
+    'jl': 'julia',
+    'zig': 'zig',
+    'nim': 'nim',
+    'clj': 'clojure',
+    'pro': 'prolog',
+    'groovy': 'groovy',
+    'pas': 'pascal',
+    'lisp': 'lisp',
+    'pl': 'perl',
   };
 
   if (logoMap[ext]) {
+    let logoUri = `https://cdn.jsdelivr.net/npm/programming-languages-logos/src/${logoMap[ext]}/${logoMap[ext]}.png`;
+    
+    // Elixir specific reliable logo
+    if (logoMap[ext] === 'elixir') {
+       logoUri = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/Official_Elixir_logo.png';
+    }
+
     return { 
-      uri: `https://cdn.jsdelivr.net/npm/programming-languages-logos/src/${logoMap[ext]}/${logoMap[ext]}.png`,
+      uri: logoUri,
       color: '#fff' 
     };
   }
@@ -59,7 +81,18 @@ export const getFileIconInfo = (name: string): { Icon?: any; color: string; uri?
   if (ext === 'cs') return { Icon: FileCodeIcon, color: '#390091' };
   if (ext === 'dart') return { Icon: FileCodeIcon, color: '#00C4B3' };
   if (ext === 'lua') return { Icon: FileCodeIcon, color: '#000080' };
-  if (ext === 'ex' || ext === 'exs') return { Icon: FileCodeIcon, color: '#4E2A8E' };
+  if (['ex', 'exs'].includes(ext)) return { Icon: FileCodeIcon, color: '#4E2A8E' };
+  if (ext === 'hs') return { Icon: FileCodeIcon, color: '#5D4F85' };
+  if (ext === 'r') return { Icon: FileCodeIcon, color: '#276DC3' };
+  if (ext === 'scala') return { Icon: FileCodeIcon, color: '#DE3423' };
+  if (ext === 'jl') return { Icon: FileCodeIcon, color: '#9558B2' };
+  if (ext === 'zig') return { Icon: FileCodeIcon, color: '#F7A41D' };
+  if (ext === 'nim') return { Icon: FileCodeIcon, color: '#FFE953' };
+  if (ext === 'clj') return { Icon: FileCodeIcon, color: '#5881D8' };
+  if (ext === 'groovy') return { Icon: FileCodeIcon, color: '#4298B8' };
+  if (ext === 'pas') return { Icon: FileCodeIcon, color: '#E61E24' };
+  if (ext === 'pl') return { Icon: FileCodeIcon, color: '#004065' };
+  if (ext === 'lisp') return { Icon: FileCodeIcon, color: '#3FB984' };
   if (ext === 'json') return { Icon: Braces, color: '#fb923c' };
   if (['yaml', 'yml'].includes(ext)) return { Icon: Braces, color: '#CB171E' };
   if (['sh', 'bash', 'zsh', 'bat'].includes(ext)) return { Icon: Terminal, color: '#4EAA25' };

@@ -11,6 +11,18 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 const app = express();
+let cachedRuntimes = null;
+
+const fetchRuntimes = async (pistonUrl) => {
+  try {
+    const targetUrl = pistonUrl.includes('/execute') ? pistonUrl.replace('/execute', '/runtimes') : pistonUrl + '/runtimes';
+    const response = await axios.get(targetUrl);
+    cachedRuntimes = response.data;
+    console.log(`✅ Loaded ${cachedRuntimes.length} Piston runtimes`);
+  } catch (err) {
+    console.error('❌ Failed to fetch Piston runtimes:', err.message);
+  }
+};
 
 // Middleware
 app.use(helmet());
@@ -26,7 +38,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
   const systemPrompt = `You are CodeMobile AI Assistant. 
     Generate complete, working code. Include comments. Use best practices.
-    Multilingual support: English, Hindi, Hinglish.
+    Multilingual support: English, Hindi, Hinglish, Spanish, French, German, Chinese, Japanese, Arabic.
     Context:
     ${context}
   `;
@@ -86,15 +98,48 @@ app.post('/api/v2/execute', async (req, res) => {
     // Others might use /api/v2/piston
     const targetUrl = pistonUrl.includes('/execute') ? pistonUrl : pistonUrl + '/execute';
 
+    // Resolve '*' version to latest if available
+    let targetVersion = version || '*';
+    if (targetVersion === '*') {
+      if (!cachedRuntimes) await fetchRuntimes(pistonUrl);
+      if (cachedRuntimes) {
+        const matches = cachedRuntimes.filter(r => r.language === language);
+        if (matches.length > 0) {
+          // Sort by version (simple sort for now)
+          matches.sort((a, b) => b.version.localeCompare(a.version));
+          targetVersion = matches[0].version;
+          console.log(`📍 Resolved * to ${targetVersion} for ${language}`);
+        }
+      }
+    }
+
     const response = await axios.post(targetUrl, {
       language,
-      version: version || '*',
+      version: targetVersion,
       files: files || [],
       stdin: stdin || "",
       args: args || [],
       compile_timeout: 10000,
       run_timeout: 3000
     });
+
+    if (response.data && response.data.run) {
+      let { stdout, stderr, signal } = response.data.run;
+      
+      // Filter out Piston system noise (cgroup isolate errors)
+      if (stderr) {
+        stderr = stderr.split('\n')
+          .filter(line => !line.includes('/sys/fs/cgroup') && !line.includes('memory.events') && !line.includes('Isolate Error'))
+          .join('\n');
+      }
+
+      if (stdout) console.log(`[STDOUT] ${stdout.trim()}`);
+      if (stderr) console.error(`[STDERR] ${stderr.trim()}`);
+      if (signal) console.log(`[SIGNAL] ${signal}`);
+
+      // Update response data with cleaned stderr
+      response.data.run.stderr = stderr;
+    }
 
     res.json(response.data);
 
@@ -127,6 +172,7 @@ wss.on('connection', (ws, req) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 CodeMobile Backend running on port ${PORT}`);
+  await fetchRuntimes(process.env.PISTON_URL || 'https://emkc.org/api/v2/piston/execute');
 });

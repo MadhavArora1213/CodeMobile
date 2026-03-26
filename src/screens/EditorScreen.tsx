@@ -25,8 +25,8 @@ const EditorScreen = () => {
   const { 
     activeFile, saveFile, loadFiles, setActiveFile, 
     createFile, createFolder, createTextFile, 
-    autoSave, toggleAutoSave, saveAllFiles,
-    openExternalFile, closeFolder
+    autoSave, toggleAutoSave, saveAllFiles, exportProject,
+    importFiles, importFile, closeFolder, updateActiveFileContent
   } = useFileStore();
   const [currentContent, setCurrentContent] = useState('');
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -60,6 +60,11 @@ const EditorScreen = () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
   }, [currentContent, autoSave]);
+
+  const handleContentChange = (content: string) => {
+    setCurrentContent(content);
+    updateActiveFileContent(content);
+  };
 
   const handleSave = async () => {
     if (activeFile) {
@@ -113,12 +118,12 @@ const EditorScreen = () => {
   const handleOpenFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'text/*',
+        type: '*/*',
         copyToCacheDirectory: true,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        await openExternalFile(asset.uri, asset.name);
+        await importFile(asset.uri, asset.name);
       }
     } catch (e) {
       console.error('Error picking document:', e);
@@ -126,7 +131,33 @@ const EditorScreen = () => {
   };
 
   const handleOpenFolder = async () => {
-    setActivePanel('files');
+    try {
+      setActivePanel('files');
+      // For Android, we try to use the directory picker via DocumentPicker
+      // Note: Full directory picking is platform-limited in standard Expo DocumentPicker
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'vnd.android.document/directory', // Special MIME type for folders on Android
+        copyToCacheDirectory: true,
+        multiple: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await importFiles(result.assets.map(a => ({ uri: a.uri, name: a.name })));
+      }
+    } catch (error) {
+       // Fallback if the directory MIME type is not supported
+       try {
+        const fallbackResult = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          multiple: true
+        });
+        if (!fallbackResult.canceled && fallbackResult.assets) {
+          await importFiles(fallbackResult.assets.map(a => ({ uri: a.uri, name: a.name })));
+        }
+      } catch (e) {
+        console.error('Error picking folder:', e);
+      }
+    }
   };
 
   const handleNewFile = () => {
@@ -153,7 +184,7 @@ const EditorScreen = () => {
     }
   };
 
-  const handleMenuAction = (action: string) => {
+  const handleMenuAction = async (action: string) => {
     setOpenMenu(null);
     switch (action) {
       // File menu
@@ -163,11 +194,14 @@ const EditorScreen = () => {
         setActivePanel('files');
         handleOpenFile(); 
         break;
-      case 'openFolder': handleOpenFolder(); break;
       case 'save': handleSave(); break;
       case 'saveAll': 
-        saveAllFiles(); 
-        Alert.alert('✓ Saved', 'All files saved');
+        if (useFileStore.getState().externalRootUri) {
+          await saveAllFiles();
+          Alert.alert('✓ Project Synced', 'All changes mirrored to your linked folder.');
+        } else {
+          await exportProject(); 
+        }
         break;
       case 'autoSave': toggleAutoSave(); break;
       case 'closeFile': setActiveFile(null); break;
@@ -244,10 +278,9 @@ const EditorScreen = () => {
       { label: 'New File...', action: 'newFile', shortcut: 'Ctrl+Alt+N' },
       { label: '─────────', action: 'divider' },
       { label: 'Open File...', action: 'openFile', shortcut: 'Ctrl+O' },
-      { label: 'Open Folder...', action: 'openFolder', shortcut: 'Ctrl+K' },
       { label: '─────────', action: 'divider' },
       { label: 'Save', action: 'save', shortcut: 'Ctrl+S' },
-      { label: 'Save All', action: 'saveAll', shortcut: 'Ctrl+K S' },
+      { label: 'Save All (Export)...', action: 'saveAll', shortcut: 'Ctrl+K S' },
       { label: '─────────', action: 'divider' },
       { label: 'Auto Save', action: 'autoSave', checked: autoSave },
       { label: '─────────', action: 'divider' },
@@ -406,7 +439,7 @@ const EditorScreen = () => {
                     ref={editorRef}
                     content={activeFile.content || ''}
                     language={getLanguage(activeFile.name)}
-                    onChange={setCurrentContent}
+                    onChange={handleContentChange}
                     onAiSuggestionRequest={handleAiSuggestion}
                   />
                 ) : (

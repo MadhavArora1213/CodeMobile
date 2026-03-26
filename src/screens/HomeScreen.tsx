@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Menu, MessageSquare, Play, Save, Terminal as TerminalIcon, GitBranch } from 'lucide-react-native';
+import { Menu, MessageSquare, Play, Save, Terminal as TerminalIcon, GitBranch, File } from 'lucide-react-native';
+import { Image } from 'react-native';
 import Editor from '../components/Editor';
 import FileExplorer from '../components/FileExplorer';
 import AIChat from '../components/AIChat';
@@ -11,6 +12,7 @@ import GitView from '../components/GitView';
 import { useFileStore } from '../store/useFileStore';
 import { executeCode } from '../utils/codeExecution';
 import { getLanguageByExtension } from '../constants/languages';
+import { getFileIconInfo } from '../utils/icons';
 
 const HomeScreen = () => {
   const [showExplorer, setShowExplorer] = useState(false);
@@ -20,7 +22,7 @@ const HomeScreen = () => {
   const [showOutput, setShowOutput] = useState(false);
   const [executionResult, setExecutionResult] = useState({ stdout: '', stderr: '' });
   const [loading, setLoading] = useState(false);
-  const { activeFile, loadFiles, saveFile } = useFileStore();
+  const { activeFile, loadFiles, saveFile, rootDir } = useFileStore();
   const [currentContent, setCurrentContent] = useState('');
 
   useEffect(() => {
@@ -74,9 +76,19 @@ const HomeScreen = () => {
           <Menu size={24} color="#fff" />
         </TouchableOpacity>
         
-        <Text style={styles.fileName}>
-          {activeFile ? activeFile.name : 'CodeMobile'}
-        </Text>
+        <View style={styles.fileHeaderInfo}>
+          {activeFile && (() => {
+            const info = getFileIconInfo(activeFile.name);
+            if (info.uri) {
+              return <Image source={{ uri: info.uri }} style={styles.headerIcon} />;
+            }
+            const IconComp = info.Icon || File;
+            return <IconComp size={18} color={info.color} style={styles.headerIcon} />;
+          })()}
+          <Text style={styles.fileName}>
+            {activeFile ? activeFile.name : 'CodeMobile'}
+          </Text>
+        </View>
  
         <View style={styles.rightActions}>
           <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
@@ -141,6 +153,10 @@ const HomeScreen = () => {
           output={executionResult.stdout} 
           error={executionResult.stderr} 
           onClose={() => setShowOutput(false)} 
+          language={currentLanguage}
+          previewContent={currentContent}
+          isBrowserPreview={currentLanguage === 'html' || currentLanguage === 'javascript' || currentLanguage === 'css'}
+          mobilePath={rootDir}
         />
       )}
     </SafeAreaView>
@@ -161,6 +177,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
     borderBottomWidth: 1,
     borderBottomColor: '#334155',
+  },
+  fileHeaderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  headerIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+    borderRadius: 2,
   },
   fileName: {
     color: '#fff',

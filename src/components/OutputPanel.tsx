@@ -9,16 +9,26 @@ interface OutputProps {
   isBrowserPreview?: boolean;
   previewContent?: string;
   language?: string;
+  onClearTerminal?: () => void;
+  mobilePath?: string;
 }
 
 import { WebView } from 'react-native-webview';
+const terminalHtml = require('../../assets/editor/terminal.html');
 
-const OutputPanel: React.FC<OutputProps> = ({ output, error, onClose, isBrowserPreview, previewContent, language }) => {
+const OutputPanel: React.FC<OutputProps> = ({ output, error, onClose, isBrowserPreview, previewContent, language, onClearTerminal, mobilePath }) => {
   const [activeTab, setActiveTab] = React.useState(isBrowserPreview ? 'PREVIEW' : 'OUTPUT');
+  const termRef = React.useRef<WebView>(null);
+
+  React.useEffect(() => {
+    if (termRef.current) {
+        if (output) termRef.current.postMessage(JSON.stringify({ type: 'OUTPUT', data: output + '\r\n' }));
+        if (error) termRef.current.postMessage(JSON.stringify({ type: 'OUTPUT', data: '\x1b[31mError: ' + error + '\r\n\x1b[0m' }));
+    }
+  }, [output, error]);
 
   React.useEffect(() => {
     if (isBrowserPreview) setActiveTab('PREVIEW');
-    else setActiveTab('OUTPUT');
   }, [isBrowserPreview, previewContent]);
 
   const generateHtml = () => {
@@ -49,6 +59,12 @@ const OutputPanel: React.FC<OutputProps> = ({ output, error, onClose, isBrowserP
           >
             <Text style={activeTab === 'OUTPUT' ? styles.activeTabText : styles.tabText}>OUTPUT</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setActiveTab('TERMINAL')}
+            style={[styles.tab, activeTab === 'TERMINAL' && styles.activeTab]}
+          >
+            <Text style={activeTab === 'TERMINAL' ? styles.activeTabText : styles.tabText}>TERMINAL</Text>
+          </TouchableOpacity>
           {(language === 'javascript' || language === 'html' || language === 'css') && (
             <TouchableOpacity 
               onPress={() => setActiveTab('PREVIEW')}
@@ -71,6 +87,22 @@ const OutputPanel: React.FC<OutputProps> = ({ output, error, onClose, isBrowserP
             style={{ backgroundColor: '#1e1e1e' }}
             javaScriptEnabled={true}
             domStorageEnabled={true}
+          />
+        ) : activeTab === 'TERMINAL' ? (
+          <WebView
+            ref={termRef}
+            originWhitelist={['*']}
+            source={terminalHtml}
+            style={{ backgroundColor: '#000' }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            onLoad={() => {
+              const cleanPath = mobilePath ? mobilePath.replace('file://', '').replace(/%20/g, ' ') : '/Documents/projects/default/';
+              const prompt = `\x1b[32mCodeMobile\x1b[0m \x1b[34m${cleanPath}\x1b[0m\r\n$ `;
+              termRef.current?.postMessage(JSON.stringify({ type: 'OUTPUT', data: prompt }));
+              if (output) termRef.current?.postMessage(JSON.stringify({ type: 'OUTPUT', data: output + '\r\n' }));
+              if (error) termRef.current?.postMessage(JSON.stringify({ type: 'OUTPUT', data: '\x1b[31mError: ' + error + '\r\n\x1b[0m' }));
+            }}
           />
         ) : (
           <ScrollView style={styles.content}>

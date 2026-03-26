@@ -22,11 +22,17 @@ interface SidebarProps {
 
 const getFileColor = (name: string) => getFileIconInfo(name).color;
 
-// File tree item component
-const FileTreeItem = ({ item, onSelect, onDelete }: { item: any; onSelect: (item: any) => void; onDelete: (path: string) => void }) => {
+const FileTreeItem = ({ 
+  item, onSelect, onDelete, 
+  isMultiSelect, selectedPaths, onToggleSelect 
+}: { 
+  item: any; onSelect: (item: any) => void; onDelete: (path: string) => void;
+  isMultiSelect: boolean; selectedPaths: string[]; onToggleSelect: (path: string) => void;
+}) => {
   const { activeFile, selectedFolder, toggleFolder, setSelectedFolder } = useFileStore();
   const isActive = activeFile?.path === item.path;
   const isSelected = selectedFolder === item.path;
+  const isSelectedForBulk = selectedPaths.includes(item.path);
   const paddingLeft = 12 + (item.depth || 0) * 16;
 
   return (
@@ -35,27 +41,41 @@ const FileTreeItem = ({ item, onSelect, onDelete }: { item: any; onSelect: (item
         style={[
           styles.fileItem, 
           isActive && styles.activeFileItem, 
-          item.isDirectory && isSelected && styles.selectedFolderItem,
           { paddingLeft }
         ]}
         onPress={() => {
-          if (item.isDirectory) {
+          if (isMultiSelect) {
+            onToggleSelect(item.path);
+          } else if (item.isDirectory) {
             toggleFolder(item.path);
             setSelectedFolder(item.path);
           } else {
             onSelect(item);
-            // If we click a file, we might want the parent folder to be the creation target
             const parentDir = item.path.substring(0, item.path.lastIndexOf('/') + 1);
             setSelectedFolder(parentDir);
           }
         }}
         onLongPress={() => {
-          Alert.alert('Delete', `Delete "${item.name}"?`, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => onDelete(item.path) },
-          ]);
+          if (!isMultiSelect) {
+            Alert.alert('Delete', `Delete "${item.name}"?`, [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete', style: 'destructive', onPress: () => onDelete(item.path) },
+            ]);
+          }
         }}
       >
+        {isMultiSelect && (
+          <View style={{ marginRight: 8 }}>
+            <View style={{ 
+              width: 16, height: 16, borderRadius: 2, borderWidth: 1, 
+              borderColor: isSelectedForBulk ? '#3b82f6' : '#858585',
+              backgroundColor: isSelectedForBulk ? '#3b82f6' : 'transparent',
+              justifyContent: 'center', alignItems: 'center'
+            }}>
+              {isSelectedForBulk && <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>✓</Text>}
+            </View>
+          </View>
+        )}
         {item.isDirectory ? (
           item.isOpen ? (
             <ChevronDown size={14} color="#858585" style={{ marginRight: 2 }} />
@@ -80,15 +100,23 @@ const FileTreeItem = ({ item, onSelect, onDelete }: { item: any; onSelect: (item
           {item.name}
         </Text>
         <View style={{ flex: 1 }} />
-        {item.isDirectory ? (
+        {item.isDirty ? (
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff', marginRight: 12 }} />
+        ) : item.isDirectory ? (
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#7ED321', marginRight: 8, opacity: 0.8 }} />
-        ) : (
-          <Text style={{ color: '#7ED321', fontSize: 11, marginRight: 8, fontWeight: '600' }}>U</Text>
-        )}
+        ) : null}
       </TouchableOpacity>
       {item.isDirectory && item.isOpen && item.children && (
         item.children.map((child: any) => (
-          <FileTreeItem key={child.path} item={child} onSelect={onSelect} onDelete={onDelete} />
+          <FileTreeItem 
+            key={child.path} 
+            item={child} 
+            onSelect={onSelect} 
+            onDelete={onDelete}
+            isMultiSelect={isMultiSelect}
+            selectedPaths={selectedPaths}
+            onToggleSelect={onToggleSelect}
+          />
         ))
       )}
     </View>
@@ -273,11 +301,39 @@ const AIPanel = () => (
 const Sidebar = ({ onFileSelect, activePanel, onPanelChange }: SidebarProps) => {
   const { 
     files, setActiveFile, loadFiles, createFile, 
-    createFolder, deleteItem, selectedFolder, 
-    setSelectedFolder, rootDir 
+    createFolder, deleteItem, deleteItems, selectedFolder, 
+    setSelectedFolder, rootDir, externalRootUri 
   } = useFileStore();
   const [showNewInput, setShowNewInput] = useState<'file' | 'folder' | null>(null);
   const [newName, setNewName] = useState('');
+  const [isMultiSelect, setIsMultiSelect] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  
+  const toggleSelection = (path: string) => {
+    setSelectedPaths(prev => 
+      prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]
+    );
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedPaths.length === 0) return;
+    Alert.alert(
+      'Bulk Delete', 
+      `Are you sure you want to delete ${selectedPaths.length} items?`, 
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            await deleteItems(selectedPaths);
+            setSelectedPaths([]);
+            setIsMultiSelect(false);
+          } 
+        },
+      ]
+    );
+  };
 
   const handleSelect = (item: any) => {
     setActiveFile(item);
@@ -333,9 +389,28 @@ const Sidebar = ({ onFileSelect, activePanel, onPanelChange }: SidebarProps) => 
               {/* Explorer Header with action buttons */}
               <View style={styles.explorerHeader}>
                 <View style={styles.headerTitleContainer}>
-                  <Text style={styles.panelTitle}>EXPLORER</Text>
-                  <Text style={styles.targetInfo} numberOfLines={1} ellipsizeMode="tail">
-                    Target: {selectedFolder === rootDir ? 'Root' : (selectedFolder?.split('/').filter(Boolean).pop() || 'Root')}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                    <Text style={styles.panelTitle}>EXPLORER</Text>
+                    {externalRootUri && (
+                      <View style={{ backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#7ED321', paddingHorizontal: 5, borderRadius: 10, marginLeft: 8 }}>
+                        <Text style={{ color: '#7ED321', fontSize: 9, fontWeight: 'bold' }}>✓ SYNC</Text>
+                      </View>
+                    )}
+                  </View>
+                  {externalRootUri ? (
+                    <Text style={styles.targetInfo} numberOfLines={1} ellipsizeMode="tail">
+                      Project: {(() => {
+                        const decoded = decodeURIComponent(externalRootUri);
+                        const normalized = decoded.endsWith('/') ? decoded.slice(0, -1) : decoded;
+                        return normalized.split('/').pop() || normalized.split(':').pop() || 'Phone Storage';
+                      })()}
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.targetInfo, { marginTop: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+                    {(selectedFolder && selectedFolder !== rootDir) 
+                      ? `Target: ${selectedFolder.split('/').filter(Boolean).pop()}` 
+                      : 'Target: Root'
+                    }
                   </Text>
                 </View>
                 <View style={styles.explorerActions}>
@@ -348,8 +423,36 @@ const Sidebar = ({ onFileSelect, activePanel, onPanelChange }: SidebarProps) => 
                   <TouchableOpacity onPress={loadFiles} style={styles.actionBtn}>
                     <RefreshCw size={16} color="#C5C5C5" />
                   </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setIsMultiSelect(!isMultiSelect);
+                      setSelectedPaths([]);
+                    }} 
+                    style={[styles.actionBtn, isMultiSelect && { backgroundColor: '#3b82f6' }]}
+                  >
+                    <Settings size={16} color={isMultiSelect ? "#fff" : "#C5C5C5"} />
+                  </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Multi-Select Toolbar if active */}
+              {isMultiSelect && (
+                <View style={{ 
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                  paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#252526',
+                  borderBottomWidth: 1, borderBottomColor: '#333'
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>{selectedPaths.length} Selected</Text>
+                  <View style={{ flexDirection: 'row' }}>
+                    <TouchableOpacity onPress={() => setSelectedPaths([])} style={{ marginRight: 16 }}>
+                      <Text style={{ color: '#3b82f6', fontSize: 12 }}>Clear</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleBulkDelete} disabled={selectedPaths.length === 0}>
+                      <Trash2 size={16} color={selectedPaths.length > 0 ? "#ff4d4d" : "#555"} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
 
               {/* New File/Folder Input */}
               {showNewInput && (
@@ -393,6 +496,9 @@ const Sidebar = ({ onFileSelect, activePanel, onPanelChange }: SidebarProps) => 
                       item={item}
                       onSelect={handleSelect}
                       onDelete={deleteItem}
+                      isMultiSelect={isMultiSelect}
+                      selectedPaths={selectedPaths}
+                      onToggleSelect={toggleSelection}
                     />
                   ))}
                 </TouchableOpacity>
